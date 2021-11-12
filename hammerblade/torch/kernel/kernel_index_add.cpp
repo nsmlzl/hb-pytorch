@@ -5,33 +5,11 @@
 
 #include <kernel_common.hpp>
 #include <cmath>
+#include <atomic>
 #include "bsg_manycore_atomic.h"
-
-// equal to number of tiles
-#define LOCK_SIZE 128
 
 
 extern "C" {
-  int lock[LOCK_SIZE] __attribute__ ((section (".dram")));
-
-  void init_locks() {
-    for (int linearIndex = bsg_id; linearIndex < LOCK_SIZE; linearIndex += BSG_TILE_GROUP_X_DIM * BSG_TILE_GROUP_Y_DIM) {
-        lock[linearIndex] = 0;
-    }
-  }
-
-  void aquire_lock(int *lock) {
-      int lock_ret = 1;
-      do {
-          lock_ret = bsg_amoswap_aq(lock, 1);
-      } while (lock_ret != 0);
-  }
-
-  void release_lock(int *lock) {
-      bsg_amoswap_rl(lock, 0);
-  }
-
-
   int64_t get_element_index(HBTensor<float> &ten, int add_dim, int index, int64_t elementInSlice) {
       int64_t offset = 0;
       for (int i = ten.ndim()-1; i > 0; --i) {
@@ -64,21 +42,14 @@ extern "C" {
     bsg_cuda_print_stat_kernel_start();
     bsg_saif_start();
 
-    init_locks();
-    g_barrier.sync();
-
     for (int64_t srcIndex = 0; srcIndex < idx.numel(); ++srcIndex) {
         int64_t dstIndex = idx(srcIndex);
         for (int64_t linearIndex = bsg_id; linearIndex < sliceSize; linearIndex += BSG_TILE_GROUP_X_DIM * BSG_TILE_GROUP_Y_DIM) {
             int64_t dst_element_idx = get_element_index(dst, dim, dstIndex, linearIndex);
             int64_t src_element_idx = get_element_index(src, dim, srcIndex, linearIndex);
 
-            int64_t dst_lock_idx = dst_element_idx && 0xFF;
-            int *dst_lock = &lock[dst_lock_idx];
-
-            aquire_lock(dst_lock);
-            dst(dst_element_idx) += src(src_element_idx);
-            release_lock(dst_lock);
+            std::atomic<float*> dst_element {&dst(dst_element_idx)};
+            *dst_element += src(src_element_idx);
         }
     }
 
@@ -112,10 +83,6 @@ extern "C" {
     bsg_cuda_print_stat_kernel_start();
     bsg_saif_start();
 
-    init_locks();
-    g_barrier.sync();
-
-
     for (int linearIndex = bsg_id; linearIndex < src.numel(); linearIndex += BSG_TILE_GROUP_X_DIM * BSG_TILE_GROUP_Y_DIM) {
         int64_t srcIndex, elementInSlice;
         if (indexMajorMode == 1) {
@@ -131,12 +98,14 @@ extern "C" {
         int64_t dst_element_idx = get_element_index(dst, dim, dstIndex, elementInSlice);
         int64_t src_element_idx = get_element_index(src, dim, srcIndex, elementInSlice);
 
-        int64_t dst_lock_idx = dst_element_idx && 0xFF;
-        int *dst_lock = &lock[dst_lock_idx];
+        // does this even make sense? Would the real data element be atomic, or just a copy?
+        //std::atomic<float> dst_element_at {*dst_element};
+        // NOTE: Unable to compile fetch_add for type float
+        //dst_element_at.fetch_add(*src_element, std::memory_order_relaxed);
 
-        aquire_lock(dst_lock);
-        dst(dst_element_idx) += src(src_element_idx);
-        release_lock(dst_lock);
+        std::atomic<float*> dst_element {&dst(dst_element_idx)};
+        // NOTE: Operation+= does not seem to be atomic; test_index_add_12 and test_index_add_13 fail
+        *dst_element += src(src_element_idx);
     }
 
 
