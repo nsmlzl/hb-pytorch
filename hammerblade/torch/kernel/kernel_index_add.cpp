@@ -48,6 +48,8 @@ extern "C" {
             int64_t dst_element_idx = get_element_index(dst, dim, dstIndex, linearIndex);
             int64_t src_element_idx = get_element_index(src, dim, srcIndex, linearIndex);
 
+            // Compiles, but does not work:
+            // Createst atomic ptr, however, dereferenced data is not atomic
             std::atomic<float*> dst_element {&dst(dst_element_idx)};
             *dst_element += src(src_element_idx);
         }
@@ -98,11 +100,15 @@ extern "C" {
         int64_t dst_element_idx = get_element_index(dst, dim, dstIndex, elementInSlice);
         int64_t src_element_idx = get_element_index(src, dim, srcIndex, elementInSlice);
 
-        // does this even make sense? Would the real data element be atomic, or just a copy?
-        //std::atomic<float> dst_element_at {*dst_element};
-        // NOTE: Unable to compile fetch_add for type float
-        //dst_element_at.fetch_add(*src_element, std::memory_order_relaxed);
+        // MAIN PROBLEM: This creates a new object with copy of value from dst(dst_element_idx)
+        // Results are not written back to dst(dst_element_idx)
+        //std::atomic<float> dst_element {dst(dst_element_idx)};
+        // SUB PROBLEM: operator+= and fetch_add where only added for type float in C++20
+        //dst_element += src(src_element_idx);
+        //dst_element.fetch_add(*src_element, std::memory_order_relaxed);
 
+        // Compiles, but does not work:
+        // Createst atomic ptr, however, dereferenced data is not atomic
         std::atomic<float*> dst_element {&dst(dst_element_idx)};
         // NOTE: Operation+= does not seem to be atomic; test_index_add_12 and test_index_add_13 fail
         *dst_element += src(src_element_idx);
