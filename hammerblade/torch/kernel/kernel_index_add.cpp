@@ -6,7 +6,7 @@
 #include <kernel_common.hpp>
 #include <cmath>
 #include "bsg_manycore_arch.h"
-#include "bsg_mcs_mutex.hpp"
+#include "bsg_mcs_mutex.h"
 
 // equal to number of tiles
 #define MTX_SIZE 128
