@@ -114,6 +114,7 @@ Tensor& index_add_hb_(Tensor &self, int64_t dim, const Tensor &index_long, const
             TORCH_CHECK(self.size(i) == source.size(i), "index_add_(): Expected equal size of dimension ", i, " for self and source tensors");
         }
     }
+    // TODO: check for negative values in Index; also check for greatest index
 
 
     int dst_add_dim = (int) dim;
@@ -141,7 +142,7 @@ Tensor& index_add_hb_(Tensor &self, int64_t dim, const Tensor &index_long, const
     device_args.push_back(create_device_scalar((int) dst_add_dim));
     device_args.push_back(create_device_scalar((int) sliceSize));
 
-    if (nbrIndices <= 16) {
+    if (false) {
         // small number of indices
         c10::hammerblade::offload_kernel("tensorlib_index_add_small_index", device_args);
     } else {

@@ -112,31 +112,64 @@ extern "C" {
     bsg_cuda_print_stat_kernel_start();
     bsg_saif_start();
 
-    init_locks();
-    g_barrier.sync();
-
-
-    for (int linearIndex = bsg_id; linearIndex < src.numel(); linearIndex += BSG_TILE_GROUP_X_DIM * BSG_TILE_GROUP_Y_DIM) {
-        int srcIndex, elementInSlice;
-        if (indexMajorMode == 1) {
-            srcIndex = linearIndex / sliceSize;
-            elementInSlice = linearIndex % sliceSize;
-        } else {
-            srcIndex = linearIndex % numIndices;
-            elementInSlice = linearIndex / numIndices;
+    int idxPtrSize = dst.dim(dim);
+    int *idxPtr = (int*)malloc(idxPtrSize * sizeof(int));
+    int partition = 0;
+    int elementCnt = 0;
+    // TODO: reuse previous idxPtr
+    while (elementCnt < numIndices) { // && bsg_id == 0) {
+        // init idxPtr
+        for (int i = 0; i < idxPtrSize; i++) {
+            idxPtr[i] = -2;
         }
-        //bsg_printf("tile %d, srcIndex: %d, elementInSlice: %d\n", bsg_id, srcIndex, elementInSlice);
-        int dstIndex = idx(srcIndex);
+        // set idxPtr for current partition
+        // TODO: Complexity quadatic -> bad!
+        for (int cur_idx = 0; cur_idx < idxPtrSize; cur_idx++) {
+            int count = 0;
+            for (int i = 0; i < numIndices; i++) {
+                if (cur_idx == idx(i) && count == partition) {
+                    //bsg_printf("%d: found match\n", cur_idx);
+                    idxPtr[cur_idx] = i;
+                    ++elementCnt;
+                    //idxPtrEmpty = false;
+                    i = idxPtrSize;
+                    break;
+                } else if (cur_idx == idx(i) && count != partition) {
+                    //bsg_printf("%d: found match; but wrong partition\n", cur_idx);
+                    ++count;
+                }
+                if (i+1 == numIndices) {
+                    //bsg_printf("%d: no match found\n", cur_idx);
+                    idxPtr[cur_idx] = -1;
+                }
+            }
+        }
 
-        int dst_element_idx = get_element_index(dst, dim, dstIndex, elementInSlice);
-        int src_element_idx = get_element_index(src, dim, srcIndex, elementInSlice);
+        if (bsg_id == 0) {
+            for (int i = 0; i < idxPtrSize; i++) {
+                hb_assert_msg(idxPtr[i] >= -1, "error: each value in idxPtr array should be greater than -1 (value %d)\n", idxPtr[i]);
+                //bsg_printf("idx[%d]=%d\n", i, idxPtr[i]);
+            }
+        }
 
-        int dst_lock_idx = dst_element_idx && 0xFF;
-        int *dst_lock = &lock[dst_lock_idx];
+        for (int linearIndex = bsg_id; linearIndex < idxPtrSize*sliceSize; linearIndex += BSG_TILE_GROUP_X_DIM * BSG_TILE_GROUP_Y_DIM) {
+            int dstIndex = linearIndex / sliceSize;
+            int srcIndex = idxPtr[dstIndex];
+            if (srcIndex != -1) {
+                int elementInSlice = linearIndex % sliceSize;
 
-        aquire_lock(dst_lock);
-        dst(dst_element_idx) += src(src_element_idx);
-        release_lock(dst_lock);
+                //bsg_printf("tile %d, srcIndex: %d, elementInSlice: %d\n", bsg_id, srcIndex, elementInSlice);
+
+                int dst_element_idx = get_element_index(dst, dim, dstIndex, elementInSlice);
+                int src_element_idx = get_element_index(src, dim, srcIndex, elementInSlice);
+
+                dst(dst_element_idx) += src(src_element_idx);
+            }
+        }
+
+
+        ++partition;
+        g_barrier.sync();
     }
 
 
