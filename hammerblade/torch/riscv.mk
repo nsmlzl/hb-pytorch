@@ -73,27 +73,22 @@ bsg_global_Y := $(BSG_MACHINE_GLOBAL_Y)
 bsg_tiles_X  := $(bsg_global_X)
 bsg_tiles_Y  := $(bsg_global_Y)
 
+BSG_MANYCORE_LIB_OBJS+= bsg_mcs_mutex.o
 include $(BSG_MANYCORE_DIR)/software/mk/Makefile.master
 
 INCS := -I$(KERNEL_DIR)
 
 KERNEL_CSRCS   := $(notdir $(wildcard $(KERNEL_DIR)/*.c))
 KERNEL_CPPSRCS := $(notdir $(wildcard $(KERNEL_DIR)/*.cpp))
-KERNEL_ASMSRCS := $(notdir $(wildcard $(KERNEL_DIR)/*.S))
-KERNEL_OBJS    := $(patsubst %.S,%.o,$(KERNEL_ASMSRCS)) \
-                  $(patsubst %.c,%.o,$(KERNEL_CSRCS)) \
+KERNEL_OBJS    := $(patsubst %.c,%.o,$(KERNEL_CSRCS)) \
                   $(patsubst %.cpp,%.o,$(KERNEL_CPPSRCS))
-KERNEL_DIS     := $(patsubst %.S,%.dis,$(KERNEL_ASMSRCS)) \
-                  $(patsubst %.c,%.dis,$(KERNEL_CSRCS)) \
+KERNEL_DIS     := $(patsubst %.c,%.dis,$(KERNEL_CSRCS)) \
                   $(patsubst %.cpp,%.dis,$(KERNEL_CPPSRCS))
 
 $(KERNEL_CSRCS): %.c : $(KERNEL_DIR)/%.c
 	cp $^ $@
 
 $(KERNEL_CPPSRCS): %.cpp : $(KERNEL_DIR)/%.cpp
-	cp $^ $@
-
-$(KERNEL_ASMSRCS): %.S : $(KERNEL_DIR)/%.S
 	cp $^ $@
 
 kernel.riscv: $(SPMD_COMMON_OBJECTS) $(BSG_MANYCORE_LIB) crt.o
