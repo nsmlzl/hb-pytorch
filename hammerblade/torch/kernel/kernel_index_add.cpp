@@ -5,6 +5,7 @@
 
 #include <kernel_common.hpp>
 #include <cmath>
+#include <limits>
 
 
 extern "C" {
@@ -46,32 +47,28 @@ extern "C" {
     bsg_cuda_print_stat_kernel_start();
     bsg_saif_start();
 
+    const int IMAX = std::numeric_limits<int>::max();
+
     int *srcIdxLUT = (int*)malloc(dstIdxSize * sizeof(int));
-    int partition = 0;
+    for (int i = 0; i < dstIdxSize; i++) {
+        srcIdxLUT[i] = -1;
+    }
     int processedIndices = 0;
-    // TODO: reuse previous srcIdxLUT
     while (processedIndices < numIndices) {
-        // init srcIdxLUT
-        for (int i = 0; i < dstIdxSize; i++) {
-            srcIdxLUT[i] = -2;
-        }
-        // set srcIdxLUT for current partition
-        // TODO: Complexity quadatic -> bad!
+        // set srcIdxLUT for current computation stage
         for (int curDstIdx = 0; curDstIdx < dstIdxSize; curDstIdx++) {
-            int matchCount = 0;
-            for (int srcIdxIdx = 0; srcIdxIdx < numIndices; srcIdxIdx++) {
+            int srcIdxIdx = srcIdxLUT[curDstIdx];
+            while (srcIdxIdx < numIndices-1) {
+                ++srcIdxIdx;
                 // found new Index
-                if (curDstIdx == idx(srcIdxIdx) && matchCount == partition) {
+                if (curDstIdx == idx(srcIdxIdx)) {
                     srcIdxLUT[curDstIdx] = srcIdxIdx;
                     ++processedIndices;
                     break;
-                // found already processed Index
-                } else if (curDstIdx == idx(srcIdxIdx) && matchCount != partition) {
-                    ++matchCount;
                 }
-                // no match found for curDstIdx -> all were already processed
+                // no match found for curDstIdx -> all were processed
                 if (srcIdxIdx+1 == numIndices) {
-                    srcIdxLUT[curDstIdx] = -1;
+                    srcIdxLUT[curDstIdx] = IMAX;
                 }
             }
         }
@@ -79,7 +76,7 @@ extern "C" {
         for (int linearIndex = bsg_id; linearIndex < dstIdxSize*sliceSize; linearIndex += BSG_TILE_GROUP_X_DIM*BSG_TILE_GROUP_Y_DIM) {
             int dstIndex = linearIndex / sliceSize;
             int srcIndex = srcIdxLUT[dstIndex];
-            if (srcIndex != -1) {
+            if (srcIndex < IMAX) {
                 int elementInSlice = linearIndex % sliceSize;
 
                 int dst_element_idx = get_element_index(dst, dim, dstIndex, elementInSlice);
@@ -89,8 +86,6 @@ extern "C" {
             }
         }
 
-
-        ++partition;
         g_barrier.sync();
     }
 
