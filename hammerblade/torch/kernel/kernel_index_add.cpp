@@ -56,7 +56,10 @@ extern "C" {
     int processedIndices = 0;
     while (processedIndices < numIndices) {
         // set srcIdxLUT for current computation stage
-        for (int curDstIdx = 0; curDstIdx < dstIdxSize; curDstIdx++) {
+        for (int i = 0; i < dstIdxSize; i++) {
+            // let each tile compute a different LUT to reduce simultaneous memory access
+            int curDstIdx = (i+bsg_id) % dstIdxSize;
+
             int srcIdxIdx = srcIdxLUT[curDstIdx];
             while (srcIdxIdx < numIndices-1) {
                 ++srcIdxIdx;
