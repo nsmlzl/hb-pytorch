@@ -131,7 +131,8 @@ Tensor& index_add_hb_(Tensor &self, int64_t dim, const Tensor &index_long, const
     }
 
     int nbrIndices = index.numel();
-    int sliceSize = dst_c.numel() / dst_c.size(dst_add_dim);
+    int dstIdxSize = dst_c.size(dst_add_dim);
+    int sliceSize = dst_c.numel() / dstIdxSize;
     TORCH_CHECK(sliceSize > 0, "index_add_(): Expected slice with size greater than 0");
 
     std::vector<eva_t>  device_args;
@@ -141,22 +142,9 @@ Tensor& index_add_hb_(Tensor &self, int64_t dim, const Tensor &index_long, const
     device_args.push_back(create_device_tensor(index, device_ptrs));
     device_args.push_back(create_device_scalar((int) dst_add_dim));
     device_args.push_back(create_device_scalar((int) sliceSize));
-
-    if (false) {
-        // small number of indices
-        c10::hammerblade::offload_kernel("tensorlib_index_add_small_index", device_args);
-    } else {
-        // large number of indices
-        // indexMajorMode when addDim is not last dim, and not second-last (when last dim has size of 1)
-        int indexMajorMode = 1;
-        if ((dst_add_dim == dst_c.dim()-1) || (dst_c.size(dst_c.dim()-1) == 1 && dst_add_dim == dst_c.dim()-2)) {
-            indexMajorMode = 0;
-        }
-
-        device_args.push_back(create_device_scalar((int) nbrIndices));
-        device_args.push_back(create_device_scalar((int) indexMajorMode));
-        c10::hammerblade::offload_kernel("tensorlib_index_add_large_index", device_args);
-    }
+    device_args.push_back(create_device_scalar((int) nbrIndices));
+    device_args.push_back(create_device_scalar((int) dstIdxSize));
+    c10::hammerblade::offload_kernel("tensorlib_index_add", device_args);
 
     cleanup_device(device_args, device_ptrs);
 
