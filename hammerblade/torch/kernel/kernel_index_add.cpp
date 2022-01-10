@@ -56,7 +56,6 @@ extern "C" {
     bsg_saif_start();
 
     const int IMAX = std::numeric_limits<int>::max();
-    // TODO: remove bsg_printf for profiling
 
     // TODO: move to host device
     for (int i = bsg_id; i < dstIdxSize; i += BSG_TILE_GROUP_X_DIM*BSG_TILE_GROUP_Y_DIM) {
@@ -66,25 +65,6 @@ extern "C" {
         processedIndices = 0;
     }
     g_barrier.sync();
-
-    /*
-    if (bsg_id == 0) {
-        bsg_printf("numel=%d\n", srcIdxLUT.numel());
-        for (int i = 0; i < dstIdxSize; i++) {
-            bsg_printf("srcIdxLUT[%d]=%d\n", i, srcIdxLUT(i));
-        }
-        int tmp = processedIndices;
-        bsg_printf("processedIndices=%d\n", tmp);
-    }
-    if (bsg_id == 1) {
-        int tmp = processedIndices;
-        bsg_printf("1: processedIndices=%d\n", tmp);
-    }
-
-
-    if (bsg_id == 0) bsg_printf("init done!\n");
-    g_barrier.sync();
-    */
 
     bool finished = false;
     while (!finished) {
@@ -102,12 +82,10 @@ extern "C" {
                 if (curDstIdx == ((int)idx(srcIdxIdx))) {
                     srcIdxLUT(curDstIdx) = srcIdxIdx;
                     //processedIndices++;
-                    //if (bsg_id == 0) bsg_printf("found\n");
                     break;
                 }
                 // no match found for curDstIdx -> all were processed
                 if (srcIdxIdx+1 == numIndices) {
-                    //if (bsg_id == 0) bsg_printf("don't found\n");
                     srcIdxLUT(curDstIdx) = IMAX;
                 }
             }
@@ -124,26 +102,8 @@ extern "C" {
         }
         g_barrier.sync();
         if (finished) {
-            //if (bsg_id == 0) bsg_printf("stopping, since finished.\n");
             break;
         }
-
-        /*
-        if (bsg_id == 0) {
-            bsg_printf("srcIdxLUT written.\n");
-            bsg_printf("bsg_id: %d\n", bsg_id);
-            //int tmp = processedIndices;
-            //bsg_printf("processedIndices: %d\n", tmp);
-            for(int i = 0; i < dstIdxSize; i++) {
-                bsg_printf("srcIdxLUT[%d]=%d\n", i, srcIdxLUT(i));
-            }
-            for(int i = 0; i < 10; i++) {
-                bsg_printf("idx[%d]=%d\n", i, idx(i));
-            }
-            if (finished) bsg_printf("processing finished\n");
-            else bsg_printf("processing not finished\n");
-        }
-        */
 
 
         for (int linearIndex = bsg_id; linearIndex < dstIdxSize*sliceSize; linearIndex += BSG_TILE_GROUP_X_DIM*BSG_TILE_GROUP_Y_DIM) {
@@ -160,7 +120,6 @@ extern "C" {
         }
 
         g_barrier.sync();
-        //if (bsg_id == 0) bsg_printf("partition processed.\n");
     }
 
 
