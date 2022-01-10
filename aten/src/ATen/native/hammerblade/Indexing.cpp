@@ -115,6 +115,7 @@ Tensor& index_add_hb_(Tensor &self, int64_t dim, const Tensor &index_long, const
         }
     }
     // TODO: check for negative values in Index; also check for greatest index
+    // TODO: check for smaller IMAX
 
 
     int dst_add_dim = (int) dim;
@@ -131,15 +132,19 @@ Tensor& index_add_hb_(Tensor &self, int64_t dim, const Tensor &index_long, const
     }
 
     int nbrIndices = index.numel();
-    int dstIdxSize = dst_c.size(dst_add_dim);
+    const int dstIdxSize = dst_c.size(dst_add_dim);
     int sliceSize = dst_c.numel() / dstIdxSize;
     TORCH_CHECK(sliceSize > 0, "index_add_(): Expected slice with size greater than 0");
+
+    // TODO: set each element to -1
+    Tensor srcIdxLUT = at::zeros({dstIdxSize}).toType(ScalarType::Int).hammerblade();
 
     std::vector<eva_t>  device_args;
     std::vector<eva_t>  device_ptrs;
     device_args.push_back(create_device_tensor(dst_c, device_ptrs));
     device_args.push_back(create_device_tensor(src_c, device_ptrs));
     device_args.push_back(create_device_tensor(index, device_ptrs));
+    device_args.push_back(create_device_tensor(srcIdxLUT, device_ptrs));
     device_args.push_back(create_device_scalar((int) dst_add_dim));
     device_args.push_back(create_device_scalar((int) sliceSize));
     device_args.push_back(create_device_scalar((int) nbrIndices));
