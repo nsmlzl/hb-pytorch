@@ -7,6 +7,7 @@
 #include <cmath>
 #include <limits>
 #include <atomic>
+#include "bsg_manycore_atomic.h"
 
 // TODO: why unable to run atomic<int> ?
 //std::atomic<int> processedIndices;
@@ -14,6 +15,9 @@
 
 
 extern "C" {
+  int finished __attribute__ ((section (".dram")));
+
+
   int get_element_index(HBTensor<float> &ten, int add_dim, int index, int elementInSlice) {
       int offset = 0;
       for (int i = ten.ndim()-1; i > 0; --i) {
@@ -38,8 +42,7 @@ extern "C" {
           int32_t* dim_p,
           int32_t* sliceSize_p,
           int32_t* numIndices_p,
-          int32_t* dstIdxSize_p,
-          int32_t* finished) {
+          int32_t* dstIdxSize_p) {
 
     auto dst = HBTensor<float>(t0_p);
     auto src = HBTensor<float>(t1_p);
@@ -96,15 +99,16 @@ extern "C" {
             }
         }
         if (bsg_id == 0) {
-            *finished = 1;
+            bsg_amoswap_aq(&finished, 1);
         }
         g_barrier.sync();
-        // TODO: replace with processedIndices counter
+        // TODO: combine with loading of srcIdxLUT
+        // TODO: use amoadd
         if (local_work) {
-            *finished = 0;
+            bsg_amoswap_aq(&finished, 0);
         }
         g_barrier.sync();
-        if (*finished) {
+        if (finished) {
             break;
         }
 
@@ -136,7 +140,7 @@ extern "C" {
   }
 
   HB_EMUL_REG_KERNEL(tensorlib_index_add, hb_tensor_t*, hb_tensor_t*, hb_tensor_t*,
-                     hb_tensor_t*, int32_t*, int32_t*, int32_t*, int32_t*, int32_t*)
+                     hb_tensor_t*, int32_t*, int32_t*, int32_t*, int32_t*)
 
 }
 
