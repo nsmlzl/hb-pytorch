@@ -10,7 +10,7 @@
 
 // TODO: why unable to run atomic<int> ?
 //std::atomic<int> processedIndices;
-volatile int processedIndices = 42;
+//volatile int processedIndices = 42;
 
 
 extern "C" {
@@ -38,7 +38,8 @@ extern "C" {
           int32_t* dim_p,
           int32_t* sliceSize_p,
           int32_t* numIndices_p,
-          int32_t* dstIdxSize_p) {
+          int32_t* dstIdxSize_p,
+          int32_t* finished) {
 
     auto dst = HBTensor<float>(t0_p);
     auto src = HBTensor<float>(t1_p);
@@ -61,15 +62,18 @@ extern "C" {
     for (int i = bsg_id; i < dstIdxSize; i += BSG_TILE_GROUP_X_DIM*BSG_TILE_GROUP_Y_DIM) {
         srcIdxLUT(i) = -1;
     }
+    /*
     if (bsg_id == 0) {
         processedIndices = 0;
+        *finished = 1;
     }
+    */
     g_barrier.sync();
 
-    bool finished = false;
-    while (!finished) {
+    while (true) {
     //while (processedIndices < numIndices) {
         // fill srcIdxLUT for current computation stage
+        bool local_work = false;
         for (int curDstIdx = bsg_id; curDstIdx < dstIdxSize; curDstIdx += BSG_TILE_GROUP_X_DIM*BSG_TILE_GROUP_Y_DIM) {
             int srcIdxIdx = srcIdxLUT(curDstIdx);
             // last partition already found highest possible index
@@ -81,6 +85,7 @@ extern "C" {
                 // found new Index
                 if (curDstIdx == ((int)idx(srcIdxIdx))) {
                     srcIdxLUT(curDstIdx) = srcIdxIdx;
+                    local_work = true;
                     //processedIndices++;
                     break;
                 }
@@ -90,18 +95,16 @@ extern "C" {
                 }
             }
         }
-        g_barrier.sync();
-        // TODO: replace with processedIndices counter
-        // Check if srcIdxLUT empty - all elements processed
-        finished = true;
-        for (int i = 0; i < dstIdxSize; i++) {
-            if (srcIdxLUT(i) != IMAX) {
-                finished = false;
-                break;
-            }
+        if (bsg_id == 0) {
+            *finished = 1;
         }
         g_barrier.sync();
-        if (finished) {
+        // TODO: replace with processedIndices counter
+        if (local_work) {
+            *finished = 0;
+        }
+        g_barrier.sync();
+        if (*finished) {
             break;
         }
 
@@ -133,7 +136,7 @@ extern "C" {
   }
 
   HB_EMUL_REG_KERNEL(tensorlib_index_add, hb_tensor_t*, hb_tensor_t*, hb_tensor_t*,
-                     hb_tensor_t*, int32_t*, int32_t*, int32_t*, int32_t*)
+                     hb_tensor_t*, int32_t*, int32_t*, int32_t*, int32_t*, int32_t*)
 
 }
 

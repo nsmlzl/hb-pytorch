@@ -136,6 +136,9 @@ Tensor& index_add_hb_(Tensor &self, int64_t dim, const Tensor &index_long, const
     int sliceSize = dst_c.numel() / dstIdxSize;
     TORCH_CHECK(sliceSize > 0, "index_add_(): Expected slice with size greater than 0");
 
+    // TODO: try atomic type
+    int procFinished = 0;
+
     // TODO: set each element to -1
     Tensor srcIdxLUT = at::zeros({dstIdxSize}).toType(ScalarType::Int).hammerblade();
 
@@ -149,6 +152,7 @@ Tensor& index_add_hb_(Tensor &self, int64_t dim, const Tensor &index_long, const
     device_args.push_back(create_device_scalar((int) sliceSize));
     device_args.push_back(create_device_scalar((int) nbrIndices));
     device_args.push_back(create_device_scalar((int) dstIdxSize));
+    device_args.push_back(create_device_scalar((int) procFinished));
     c10::hammerblade::offload_kernel("tensorlib_index_add", device_args);
 
     cleanup_device(device_args, device_ptrs);
