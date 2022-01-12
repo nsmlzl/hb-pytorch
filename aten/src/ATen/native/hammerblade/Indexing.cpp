@@ -136,8 +136,7 @@ Tensor& index_add_hb_(Tensor &self, int64_t dim, const Tensor &index_long, const
     int sliceSize = dst_c.numel() / dstIdxSize;
     TORCH_CHECK(sliceSize > 0, "index_add_(): Expected slice with size greater than 0");
 
-    // TODO: set each element to -1
-    Tensor srcIdxLUT = at::zeros({dstIdxSize}).toType(ScalarType::Int).hammerblade();
+    Tensor srcIdxLUT = at::full({dstIdxSize}, -1, at::kInt).hammerblade();
 
     std::vector<eva_t>  device_args;
     std::vector<eva_t>  device_ptrs;

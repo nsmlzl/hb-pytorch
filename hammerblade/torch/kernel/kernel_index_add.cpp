@@ -61,10 +61,6 @@ extern "C" {
 
     const int IMAX = std::numeric_limits<int>::max();
 
-    // TODO: move to host device
-    for (int i = bsg_id; i < dstIdxSize; i += BSG_TILE_GROUP_X_DIM*BSG_TILE_GROUP_Y_DIM) {
-        srcIdxLUT(i) = -1;
-    }
     /*
     if (bsg_id == 0) {
         processedIndices = 0;
