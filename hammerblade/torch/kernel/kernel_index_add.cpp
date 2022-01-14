@@ -9,13 +9,13 @@
 #include <atomic>
 #include "bsg_manycore_atomic.h"
 
-// TODO: why unable to run atomic<int> ?
+// TODO: why does std::atomic<int> get stuck in cosim?
+// TODO: replace amoadd with std::atomic<int>
 //std::atomic<int> processedIndices;
-//volatile int processedIndices = 42;
 
 
 extern "C" {
-  int finished __attribute__ ((section (".dram")));
+  int processedIndices __attribute__ ((section (".dram")));
 
 
   int get_element_index(HBTensor<float> &ten, int add_dim, int index, int elementInSlice) {
@@ -59,20 +59,16 @@ extern "C" {
     bsg_cuda_print_stat_kernel_start();
     bsg_saif_start();
 
-    const int IMAX = std::numeric_limits<int>::max();
 
-    /*
+    const int IMAX = std::numeric_limits<int>::max();
     if (bsg_id == 0) {
         processedIndices = 0;
-        *finished = 1;
     }
-    */
     g_barrier.sync();
 
-    while (true) {
-    //while (processedIndices < numIndices) {
-        // fill srcIdxLUT for current computation stage
-        bool local_work = false;
+    while (processedIndices < numIndices) {
+        g_barrier.sync();
+        // fill srcIdxLUT for current partial index_add operation
         for (int curDstIdx = bsg_id; curDstIdx < dstIdxSize; curDstIdx += BSG_TILE_GROUP_X_DIM*BSG_TILE_GROUP_Y_DIM) {
             int srcIdxIdx = srcIdxLUT(curDstIdx);
             // last partition already found highest possible index
@@ -84,8 +80,7 @@ extern "C" {
                 // found new Index
                 if (curDstIdx == ((int)idx(srcIdxIdx))) {
                     srcIdxLUT(curDstIdx) = srcIdxIdx;
-                    local_work = true;
-                    //processedIndices++;
+                    bsg_amoadd(&processedIndices, 1);
                     break;
                 }
                 // no match found for curDstIdx -> all were processed
@@ -94,21 +89,10 @@ extern "C" {
                 }
             }
         }
-        if (bsg_id == 0) {
-            bsg_amoswap_aq(&finished, 1);
-        }
-        g_barrier.sync();
-        // TODO: combine with loading of srcIdxLUT
-        // TODO: use amoadd
-        if (local_work) {
-            bsg_amoswap_aq(&finished, 0);
-        }
-        g_barrier.sync();
-        if (finished) {
-            break;
-        }
 
 
+        g_barrier.sync();
+        // compute partial index_add operation
         for (int linearIndex = bsg_id; linearIndex < dstIdxSize*sliceSize; linearIndex += BSG_TILE_GROUP_X_DIM*BSG_TILE_GROUP_Y_DIM) {
             int dstIndex = linearIndex / sliceSize;
             int srcIndex = srcIdxLUT(dstIndex);
@@ -121,8 +105,6 @@ extern "C" {
                 dst(dst_element_idx) += src(src_element_idx);
             }
         }
-
-        g_barrier.sync();
     }
 
 
