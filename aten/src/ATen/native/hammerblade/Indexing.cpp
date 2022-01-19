@@ -114,8 +114,16 @@ Tensor& index_add_hb_(Tensor &self, int64_t dim, const Tensor &index_long, const
             TORCH_CHECK(self.size(i) == source.size(i), "index_add_(): Expected equal size of dimension ", i, " for self and source tensors");
         }
     }
-    // TODO: check for negative values in Index; also check for greatest index
-    // TODO: check for smaller IMAX
+    // check if index tensor elements have valid values
+    // index tensor needs to be duplicated on host-cpu to check elements on host
+    Tensor index_cpu = index.cpu();
+    auto index_elements = index_cpu.accessor<int32_t, 1>();
+    for (int i = 0; i < index.numel(); i++) {
+        int cur_idx = index_elements[i];
+        TORCH_CHECK(cur_idx >= 0, "invalid index: all elements of index tensor expected to be greater than zero");
+        TORCH_CHECK(cur_idx < self.size(dim), "invalid index: all elementes of index tensor expected to be smaller than destination tensor");
+    }
+    TORCH_CHECK(index.numel() < std::numeric_limits<int32_t>::max(), "number of indices expected to be smaller than IMAX");
 
 
     int dst_add_dim = (int) dim;
