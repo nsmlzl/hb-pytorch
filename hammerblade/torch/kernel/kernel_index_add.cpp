@@ -7,15 +7,10 @@
 #include <cmath>
 #include <limits>
 #include <atomic>
-#include "bsg_manycore_atomic.h"
-
-// TODO: why does std::atomic<int> get stuck in cosim?
-// TODO: replace amoadd with std::atomic<int>
-//std::atomic<int> processedIndices;
 
 
 extern "C" {
-  int processedIndices __attribute__ ((section (".dram")));
+  std::atomic<int> processedIndices __attribute__ ((section (".dram")));
 
 
   int get_element_index(HBTensor<float> &ten, int add_dim, int index, int elementInSlice) {
@@ -66,7 +61,7 @@ extern "C" {
     }
     g_barrier.sync();
 
-    while (processedIndices < numIndices) {
+    while (processedIndices.load() < numIndices) {
         g_barrier.sync();
         // fill srcIdxLUT for current partial index_add operation
         for (int curDstIdx = bsg_id; curDstIdx < dstIdxSize; curDstIdx += BSG_TILE_GROUP_X_DIM*BSG_TILE_GROUP_Y_DIM) {
@@ -80,7 +75,7 @@ extern "C" {
                 // found new Index
                 if (curDstIdx == ((int)idx(srcIdxIdx))) {
                     srcIdxLUT(curDstIdx) = srcIdxIdx;
-                    bsg_amoadd(&processedIndices, 1);
+                    processedIndices++;
                     break;
                 }
                 // no match found for curDstIdx -> all were processed
