@@ -145,6 +145,7 @@ Tensor& index_add_hb_(Tensor &self, int64_t dim, const Tensor &index_long, const
     TORCH_CHECK(sliceSize > 0, "index_add_(): Expected slice with size greater than 0");
 
     Tensor srcIdxLUT = at::full({dstIdxSize}, -1, at::kInt).hammerblade();
+    Tensor LUTQueue = at::zeros({dstIdxSize}, at::kInt).hammerblade();
 
     std::vector<eva_t>  device_args;
     std::vector<eva_t>  device_ptrs;
@@ -152,6 +153,7 @@ Tensor& index_add_hb_(Tensor &self, int64_t dim, const Tensor &index_long, const
     device_args.push_back(create_device_tensor(src_c, device_ptrs));
     device_args.push_back(create_device_tensor(index, device_ptrs));
     device_args.push_back(create_device_tensor(srcIdxLUT, device_ptrs));
+    device_args.push_back(create_device_tensor(LUTQueue, device_ptrs));
     device_args.push_back(create_device_scalar((int) dst_add_dim));
     device_args.push_back(create_device_scalar((int) sliceSize));
     device_args.push_back(create_device_scalar((int) nbrIndices));
