@@ -19,7 +19,7 @@ extern "C" {
     }
   }
 
-  void aquire_lock(int *lock) {
+  void acquire_lock(int *lock) {
       int lock_ret = 1;
       do {
           lock_ret = bsg_amoswap_aq(lock, 1);
@@ -75,7 +75,7 @@ extern "C" {
             int dst_lock_idx = dst_element_idx && 0xFF;
             int *dst_lock = &lock[dst_lock_idx];
 
-            aquire_lock(dst_lock);
+            acquire_lock(dst_lock);
             dst(dst_element_idx) += src(src_element_idx);
             release_lock(dst_lock);
         }
@@ -133,7 +133,7 @@ extern "C" {
         int dst_lock_idx = dst_element_idx && 0xFF;
         int *dst_lock = &lock[dst_lock_idx];
 
-        aquire_lock(dst_lock);
+        acquire_lock(dst_lock);
         dst(dst_element_idx) += src(src_element_idx);
         release_lock(dst_lock);
     }
