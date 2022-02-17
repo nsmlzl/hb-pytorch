@@ -9,10 +9,6 @@
 #include <atomic>
 #include "bsg_manycore_atomic.h"
 
-// TODO: why does std::atomic<int> get stuck in cosim?
-// TODO: replace amoadd with std::atomic<int>
-//std::atomic<int> processedIndices;
-
 
 extern "C" {
   int processedIndices __attribute__ ((section (".dram")));
