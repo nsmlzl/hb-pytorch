@@ -7,8 +7,7 @@
 #include <cmath>
 #include "bsg_manycore_atomic.h"
 
-// equal to number of tiles
-#define LOCK_SIZE 128
+#define LOCK_SIZE 256
 
 
 extern "C" {
