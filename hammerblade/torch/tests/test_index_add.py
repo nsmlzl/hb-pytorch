@@ -181,22 +181,22 @@ def _profiling(add_size, recurrence):
     index, _ = torch.sort(index)
     _test_index_add(dim, t1, t2, index)
 
-# def profile_input_10():
+# def test_input_10():
 #     _profiling(10, 1)
-# def profile_input_100():
+# def test_input_100():
 #     _profiling(100, 1)
-# def profile_input_1000():
+# def test_input_1000():
 #     _profiling(1000, 1)
-# def profile_input_2000():
+# def test_input_2000():
 #     _profiling(2000, 1)
-# def profile_input_3000():
+# def test_input_3000():
 #     _profiling(3000, 1)
 
-# def profile_recurrence_5():
+# def test_rec_5():
 #     _profiling(2000, 5)
-# def profile_recurrence_10():
+# def test_rec_10():
 #     _profiling(2000, 10)
-# def profile_recurrence_15():
+# def test_rec_15():
 #     _profiling(2000, 15)
-# def profile_recurrence_20():
+# def test_rec_20():
 #     _profiling(2000, 20)
