@@ -34,6 +34,7 @@ extern "C" {
           hb_tensor_t* t1_p,
           hb_tensor_t* t2_p,
           hb_tensor_t* t3_p,
+          hb_tensor_t* t4_p,
           int32_t* dim_p,
           int32_t* sliceSize_p,
           int32_t* numIndices_p,
@@ -43,6 +44,7 @@ extern "C" {
     auto src = HBTensor<float>(t1_p);
     auto idx = HBTensor<int32_t>(t2_p);
     auto srcIdxLUT = HBTensor<int32_t>(t3_p);
+    auto LUTQueue = HBTensor<int32_t>(t4_p);
 
     int dim = *dim_p;
     int sliceSize = *sliceSize_p;
@@ -60,6 +62,7 @@ extern "C" {
         processedIndices = 0;
     }
     g_barrier.sync();
+    int processedIndicesPrev = 0;
 
     while (processedIndices.load() < numIndices) {
         g_barrier.sync();
@@ -75,7 +78,9 @@ extern "C" {
                 // found new Index
                 if (curDstIdx == ((int)idx(srcIdxIdx))) {
                     srcIdxLUT(curDstIdx) = srcIdxIdx;
-                    processedIndices++;
+                    int queueAddr = processedIndices++;
+                    queueAddr -= processedIndicesPrev;
+                    LUTQueue(queueAddr) = curDstIdx;
                     break;
                 }
                 // no match found for curDstIdx -> all were processed
@@ -87,18 +92,18 @@ extern "C" {
 
 
         g_barrier.sync();
+        int queueSize = processedIndices-processedIndicesPrev;
+        processedIndicesPrev = processedIndices;
         // compute partial index_add operation
-        for (int linearIndex = bsg_id; linearIndex < dstIdxSize*sliceSize; linearIndex += BSG_TILE_GROUP_X_DIM*BSG_TILE_GROUP_Y_DIM) {
-            int dstIndex = linearIndex / sliceSize;
+        for (int linearIndex = bsg_id; linearIndex < queueSize*sliceSize; linearIndex += BSG_TILE_GROUP_X_DIM*BSG_TILE_GROUP_Y_DIM) {
+            int dstIndex = LUTQueue(linearIndex / sliceSize);
             int srcIndex = srcIdxLUT(dstIndex);
-            if (srcIndex < numIndices) {
-                int elementInSlice = linearIndex % sliceSize;
+            int elementInSlice = linearIndex % sliceSize;
 
-                int dst_element_idx = get_element_index(dst, dim, dstIndex, elementInSlice);
-                int src_element_idx = get_element_index(src, dim, srcIndex, elementInSlice);
+            int dst_element_idx = get_element_index(dst, dim, dstIndex, elementInSlice);
+            int src_element_idx = get_element_index(src, dim, srcIndex, elementInSlice);
 
-                dst(dst_element_idx) += src(src_element_idx);
-            }
+            dst(dst_element_idx) += src(src_element_idx);
         }
     }
 
@@ -113,7 +118,7 @@ extern "C" {
   }
 
   HB_EMUL_REG_KERNEL(tensorlib_index_add, hb_tensor_t*, hb_tensor_t*, hb_tensor_t*,
-                     hb_tensor_t*, int32_t*, int32_t*, int32_t*, int32_t*)
+                     hb_tensor_t*, hb_tensor_t*, int32_t*, int32_t*, int32_t*, int32_t*)
 
 }
 
