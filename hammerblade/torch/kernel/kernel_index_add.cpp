@@ -7,6 +7,8 @@
 #include <cmath>
 #include <limits>
 #include <atomic>
+#include <bsg_cuda_lite_barrier.h>
+#include <bsg_barrier_amoadd.h>
 
 
 extern "C" {
@@ -49,6 +51,7 @@ extern "C" {
     int numIndices = *numIndices_p;
     int dstIdxSize = *dstIdxSize_p;
 
+    bsg_barrier_hw_tile_group_init();
 
     // Start profiling
     bsg_cuda_print_stat_kernel_start();
@@ -59,10 +62,10 @@ extern "C" {
     if (bsg_id == 0) {
         processedIndices = 0;
     }
-    g_barrier.sync();
+    bsg_barrier_hw_tile_group_sync();
 
     while (processedIndices.load() < numIndices) {
-        g_barrier.sync();
+        bsg_barrier_hw_tile_group_sync();
         // fill srcIdxLUT for current partial index_add operation
         for (int curDstIdx = bsg_id; curDstIdx < dstIdxSize; curDstIdx += BSG_TILE_GROUP_X_DIM*BSG_TILE_GROUP_Y_DIM) {
             int srcIdxIdx = srcIdxLUT(curDstIdx);
@@ -86,7 +89,7 @@ extern "C" {
         }
 
 
-        g_barrier.sync();
+        bsg_barrier_hw_tile_group_sync();
         // compute partial index_add operation
         for (int linearIndex = bsg_id; linearIndex < dstIdxSize*sliceSize; linearIndex += BSG_TILE_GROUP_X_DIM*BSG_TILE_GROUP_Y_DIM) {
             int dstIndex = linearIndex / sliceSize;
@@ -103,12 +106,12 @@ extern "C" {
     }
 
 
-    g_barrier.sync();
+    bsg_barrier_hw_tile_group_sync();
     // End profiling
     bsg_saif_end();
     bsg_cuda_print_stat_kernel_end();
 
-    g_barrier.sync();
+    bsg_barrier_hw_tile_group_sync();
     return 0;
   }
 

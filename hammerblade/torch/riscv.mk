@@ -73,6 +73,9 @@ bsg_global_Y := $(BSG_MACHINE_GLOBAL_Y)
 bsg_tiles_X  := $(bsg_global_X)
 bsg_tiles_Y  := $(bsg_global_Y)
 
+BSG_MANYCORE_LIB_OBJS+= bsg_barrier_amoadd.o
+BSG_MANYCORE_LIB_OBJS+= bsg_cuda_lite_barrier.o
+
 include $(BSG_MANYCORE_DIR)/software/mk/Makefile.master
 
 INCS := -I$(KERNEL_DIR)
